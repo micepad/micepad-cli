@@ -105,18 +105,30 @@ func (c *Client) handleFile(command string, params map[string]interface{}) error
 		}
 		return c.succeed("file", string(data))
 	case "write":
-		os.MkdirAll(filepath.Dir(pathStr), 0755)
-		if err := os.WriteFile(pathStr, []byte(paramStr(params, "content")), 0644); err != nil {
+		content, err := fileContent(params)
+		if err != nil {
+			return c.fail("file", err.Error())
+		}
+		if err := os.MkdirAll(filepath.Dir(pathStr), 0755); err != nil {
+			return c.fail("file", err.Error())
+		}
+		if err := os.WriteFile(pathStr, content, 0644); err != nil {
 			return c.fail("file", err.Error())
 		}
 		return c.succeed("file", nil)
 	case "append":
+		content, err := fileContent(params)
+		if err != nil {
+			return c.fail("file", err.Error())
+		}
 		f, err := os.OpenFile(pathStr, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return c.fail("file", err.Error())
 		}
 		defer f.Close()
-		f.WriteString(paramStr(params, "content"))
+		if _, err := f.Write(content); err != nil {
+			return c.fail("file", err.Error())
+		}
 		return c.succeed("file", nil)
 	case "delete":
 		if err := os.Remove(pathStr); err != nil {
@@ -188,6 +200,18 @@ func (c *Client) handleEnvVar(command string, params map[string]interface{}) err
 }
 
 // helpers
+
+func fileContent(params map[string]interface{}) ([]byte, error) {
+	// Ruby's ASCII-8BIT strings arrive as MessagePack bin, not str.
+	switch content := params["content"].(type) {
+	case []byte:
+		return content, nil
+	case string:
+		return []byte(content), nil
+	default:
+		return nil, fmt.Errorf("file content must be text or binary")
+	}
+}
 
 func paramStr(params map[string]interface{}, key string) string {
 	v, _ := params[key].(string)

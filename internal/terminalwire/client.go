@@ -93,7 +93,15 @@ func (c *Client) prepareFileArgs(args []string) []string {
 			continue
 		}
 
-		absPath, err := filepath.Abs(expandPath(arg))
+		localPath := arg
+		if strings.HasPrefix(localPath, "~/") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				continue
+			}
+			localPath = filepath.Join(home, localPath[2:])
+		}
+		absPath, err := filepath.Abs(localPath)
 		if err != nil {
 			continue
 		}
@@ -138,8 +146,8 @@ func (c *Client) sendInit(args []string) error {
 		},
 		"entitlement": map[string]interface{}{
 			"authority":             c.authority,
-			"schemes":              []interface{}{"http", "https"},
-			"paths":                []interface{}{c.storagePath, storagePattern},
+			"schemes":               []interface{}{"http", "https"},
+			"paths":                 []interface{}{c.storagePath, storagePattern},
 			"environment_variables": []interface{}{"TERMINALWIRE_HOME"},
 		},
 		"program": map[string]interface{}{
